@@ -1,0 +1,10 @@
+fastapi>=0.115.0
+uvicorn>=0.34.0
+sqlalchemy>=2.0.0
+python-multipart>=0.0.9
+ddgs
+beautifulsoup4
+requests
+selenium
+textblob
+scikit-learn
