@@ -1,5 +1,8 @@
+import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, text, or_
 from database import Base, engine
 from routes import cookies, scrape, posts, analytics, collections, monitor
@@ -114,9 +117,10 @@ finally:
 
 app = FastAPI(title="LinkedIn Intelligence Platform")
 
+_allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -139,3 +143,20 @@ def on_startup():
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+# Serve frontend static files (built by Vite) — must be after all API routes
+_frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _frontend_dist.is_dir():
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=str(_frontend_dist / "assets")), name="assets")
+
+    # SPA fallback — serve index.html for all non-API routes
+    from fastapi.responses import FileResponse
+
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str):
+        file_path = _frontend_dist / full_path
+        if file_path.is_file():
+            return FileResponse(str(file_path))
+        return FileResponse(str(_frontend_dist / "index.html"))

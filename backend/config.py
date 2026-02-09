@@ -2,9 +2,9 @@ import os
 import json
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-DATABASE_URL = f"sqlite:///{os.path.join(DATA_DIR, 'posts.db')}"
+DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data"))
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", os.path.join(BASE_DIR, "uploads"))
+DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(DATA_DIR, 'posts.db')}")
 COOKIE_FILE = os.path.join(UPLOAD_DIR, "linkedin_cookies.txt")
 CREDENTIALS_FILE = os.path.join(DATA_DIR, "credentials.json")
 
