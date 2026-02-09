@@ -132,7 +132,7 @@ export default function AnalyticsPage() {
                   cy="50%"
                   outerRadius={90}
                   innerRadius={50}
-                  label={({ label, count }) => `${label}: ${count}`}
+                  label={(props) => `${(props as any).label}: ${(props as any).count}`}
                   labelLine={{ stroke: '#6B7280' }}
                 >
                   {sentiment.map((s) => (

@@ -57,11 +57,8 @@ with engine.connect() as conn:
             VALUES (new.id, new.post_id, new.content, new.author_name, new.author_jobtitle, new.hashtags, new.topics);
         END
     """))
-    # Populate FTS from existing posts (rebuild to ensure consistency)
-    conn.execute(text("""
-        INSERT OR IGNORE INTO posts_fts(rowid, post_id, content, author_name, author_jobtitle, hashtags, topics)
-        SELECT id, post_id, content, author_name, author_jobtitle, hashtags, topics FROM posts
-    """))
+    # Rebuild FTS index to ensure consistency with posts table
+    conn.execute(text("INSERT INTO posts_fts(posts_fts) VALUES('rebuild')"))
     conn.commit()
 
 # Fix date_collected for existing posts using LinkedIn activity ID timestamps
@@ -76,12 +73,17 @@ try:
         or_(
             Post.post_url.like('%business.linkedin.com%'),
             Post.post_url.like('%training.linkedin.com%'),
+            Post.post_url.like('%training.talent.linkedin.com%'),
+            Post.post_url.like('%news.linkedin.com%'),
+            Post.post_url.like('%engineering.linkedin.com%'),
             Post.post_url.like('%/jobs/%'),
             Post.post_url.like('%/help/%'),
             Post.post_url.like('%/learning/%'),
             Post.post_url.like('%/company/%'),
             Post.post_url.like('%/school/%'),
             Post.post_url.like('%/events/%'),
+            Post.post_url.like('%/advice/%'),
+            Post.post_url.like('%/legal/%'),
         )
     ).delete(synchronize_session=False)
     if _junk:

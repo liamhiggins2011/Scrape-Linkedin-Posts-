@@ -17,7 +17,7 @@ export default function SearchPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [sort, setSort] = useState('date')
+  const [sort, setSort] = useState('relevance')
   const [job, setJob] = useState<ScrapeJob | null>(null)
   const [loading, setLoading] = useState(false)
   const [selectedPost, setSelectedPost] = useState<Post | null>(null)

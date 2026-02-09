@@ -68,22 +68,23 @@ def _save_posts(job_id: str, post_dicts: list[dict]):
                 added += 1
         db.commit()
 
-        # Fetch full content from LinkedIn pages for truncated posts
+        # Mark completed immediately so the frontend can show results
+        # Use total DDG results if more were found than newly added (duplicates)
+        jobs[job_id]["posts_found"] = max(added, len(post_dicts))
+        jobs[job_id]["status"] = "completed"
+
+        # Run enrichment in the background — don't block the user
         try:
             from services.content_fetcher import enrich_posts_with_content
             enrich_posts_with_content(job_id, db)
         except Exception:
-            pass  # Don't fail the save if content fetching fails
+            pass
 
-        # Auto-enrich new posts with sentiment/topics/hashtags
         try:
             from services.analysis_service import enrich_posts
             enrich_posts(job_id, db)
         except Exception:
-            pass  # Don't fail the save if analysis fails
-
-        jobs[job_id]["status"] = "completed"
-        jobs[job_id]["posts_found"] = added
+            pass
     finally:
         db.close()
 
