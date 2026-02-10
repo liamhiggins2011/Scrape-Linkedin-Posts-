@@ -37,12 +37,26 @@ def start_scrape(req: ScrapeRequest):
 
 @router.post("/search", response_model=ScrapeJobOut)
 def start_search(req: SearchScrapeRequest):
+    # Pass auth if available — enables native LinkedIn search via Selenium.
+    # If no auth configured, search falls back to DDG (no error).
+    cookie_path = None
+    email = None
+    password = None
+    if has_auth():
+        creds = load_credentials()
+        cookie_path = COOKIE_FILE if os.path.isfile(COOKIE_FILE) and not creds else None
+        email = creds["email"] if creds else None
+        password = creds["password"] if creds else None
+
     job_id = start_search_job(
         query=req.query,
         max_posts=req.max_posts,
         content_type=req.content_type,
         time_range=req.time_range,
         location=req.location,
+        cookie_path=cookie_path,
+        email=email,
+        password=password,
     )
     job = get_job(job_id)
     return {"job_id": job_id, **job}

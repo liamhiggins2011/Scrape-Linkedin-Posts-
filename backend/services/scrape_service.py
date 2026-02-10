@@ -1,7 +1,7 @@
 import uuid
 import threading
 from models import Post
-from scraper import scrape_linkedin_posts, search_linkedin_posts
+from scraper import scrape_linkedin_posts, search_linkedin_posts, search_linkedin_native, HAS_SELENIUM
 from database import SessionLocal
 
 # In-memory job tracking
@@ -38,6 +38,9 @@ def start_search_job(
     content_type: str = "posts",
     time_range: str = "any",
     location: str = "any",
+    cookie_path: str | None = None,
+    email: str | None = None,
+    password: str | None = None,
 ) -> str:
     job_id = str(uuid.uuid4())
     jobs[job_id] = {
@@ -49,7 +52,8 @@ def start_search_job(
     }
     thread = threading.Thread(
         target=_run_search,
-        args=(job_id, query, max_posts, content_type, time_range, location),
+        args=(job_id, query, max_posts, content_type, time_range, location,
+              cookie_path, email, password),
         daemon=True,
     )
     thread.start()
@@ -115,19 +119,45 @@ def _run_scrape(
         jobs[job_id]["error"] = str(e)
 
 
-def _run_search(job_id: str, query: str, max_posts: int, content_type: str = "posts", time_range: str = "any", location: str = "any"):
+def _run_search(
+    job_id: str, query: str, max_posts: int,
+    content_type: str = "posts", time_range: str = "any", location: str = "any",
+    cookie_path: str | None = None, email: str | None = None, password: str | None = None,
+):
     try:
         def on_progress(count):
             jobs[job_id]["posts_found"] = count
 
-        post_dicts = search_linkedin_posts(
-            query=query,
-            max_posts=max_posts,
-            content_type=content_type,
-            time_range=time_range,
-            location=location,
-            on_post_found=on_progress,
-        )
+        post_dicts = None
+
+        # Try native LinkedIn search first when Selenium + auth are available
+        if HAS_SELENIUM and (cookie_path or (email and password)):
+            try:
+                post_dicts = search_linkedin_native(
+                    query=query,
+                    max_posts=max_posts,
+                    content_type=content_type,
+                    time_range=time_range,
+                    location=location,
+                    cookie_path=cookie_path,
+                    email=email,
+                    password=password,
+                    on_post_found=on_progress,
+                )
+            except Exception:
+                post_dicts = None
+
+        # Fall back to DDG search
+        if post_dicts is None:
+            post_dicts = search_linkedin_posts(
+                query=query,
+                max_posts=max_posts,
+                content_type=content_type,
+                time_range=time_range,
+                location=location,
+                on_post_found=on_progress,
+            )
+
         _save_posts(job_id, post_dicts)
     except Exception as e:
         jobs[job_id]["status"] = "failed"

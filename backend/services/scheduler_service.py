@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from database import SessionLocal
 from models import SavedSearch, MonitorResult, Post
-from scraper import search_linkedin_posts
+from scraper import search_linkedin_posts, search_linkedin_native, HAS_SELENIUM
 
 logger = logging.getLogger(__name__)
 
@@ -71,15 +71,43 @@ def _tick():
 
 def _execute_saved_search(search: SavedSearch, db):
     """Run a single saved search and record results."""
+    import os
+    from config import COOKIE_FILE, load_credentials, has_auth
+
     job_id = str(uuid.uuid4())
 
-    post_dicts = search_linkedin_posts(
-        query=search.query,
-        max_posts=search.max_posts,
-        content_type=search.content_type,
-        time_range=search.time_range,
-        location=search.location,
-    )
+    post_dicts = None
+
+    # Try native LinkedIn search when auth is configured
+    if HAS_SELENIUM and has_auth():
+        creds = load_credentials()
+        cookie_path = COOKIE_FILE if os.path.isfile(COOKIE_FILE) and not creds else None
+        email = creds["email"] if creds else None
+        password = creds["password"] if creds else None
+        try:
+            post_dicts = search_linkedin_native(
+                query=search.query,
+                max_posts=search.max_posts,
+                content_type=search.content_type,
+                time_range=search.time_range,
+                location=search.location,
+                cookie_path=cookie_path,
+                email=email,
+                password=password,
+            )
+        except Exception:
+            logger.warning(f"Native search failed for '{search.name}', falling back to DDG")
+            post_dicts = None
+
+    # Fall back to DDG search
+    if post_dicts is None:
+        post_dicts = search_linkedin_posts(
+            query=search.query,
+            max_posts=search.max_posts,
+            content_type=search.content_type,
+            time_range=search.time_range,
+            location=search.location,
+        )
 
     # Save new posts (skip duplicates)
     added = 0

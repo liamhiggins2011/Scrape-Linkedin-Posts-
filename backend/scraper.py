@@ -83,6 +83,13 @@ _TIME_MAP = {
     "year": "y",
 }
 
+# LinkedIn native search datePosted URL param values
+_LINKEDIN_DATE_MAP = {
+    "day": "past-24h",
+    "week": "past-week",
+    "month": "past-month",
+}
+
 
 _REGION_MAP = {
     "any": None,
@@ -431,6 +438,117 @@ def _parse_posts_from_soup(soup, unique_post_ids):
         })
 
     return posts
+
+
+# ---------------------------------------------------------------------------
+# Selenium-based LinkedIn native search (requires login)
+# ---------------------------------------------------------------------------
+def search_linkedin_native(
+    query: str,
+    max_posts: int = 20,
+    content_type: str = "posts",
+    time_range: str = "any",
+    location: str = "any",
+    cookie_path: str | None = None,
+    email: str | None = None,
+    password: str | None = None,
+    max_scroll_attempts: int = 40,
+    max_no_new_posts: int = 3,
+    on_post_found: Callable[[int], None] | None = None,
+) -> list[dict]:
+    """
+    Search LinkedIn directly via Selenium for better results and real engagement data.
+    Requires Selenium and a LinkedIn login.
+    Falls back caller should catch exceptions and fall back to DDG.
+    """
+    if not HAS_SELENIUM:
+        raise RuntimeError("Selenium is not installed.")
+
+    if not cookie_path and not (email and password):
+        raise RuntimeError("Either cookie_path or email+password must be provided.")
+
+    from urllib.parse import quote_plus
+
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    browser = webdriver.Chrome(options=chrome_options)
+    browser.set_window_size(1920, 1080)
+
+    try:
+        # --- Login (reuse existing flow) ---
+        if email and password:
+            browser.get("https://www.linkedin.com/login")
+            time.sleep(2)
+            email_field = WebDriverWait(browser, 10).until(
+                EC.presence_of_element_located((By.ID, "username"))
+            )
+            email_field.clear()
+            email_field.send_keys(email)
+            password_field = browser.find_element(By.ID, "password")
+            password_field.clear()
+            password_field.send_keys(password)
+            password_field.submit()
+            time.sleep(3)
+        elif cookie_path:
+            browser.get("https://www.linkedin.com/")
+            time.sleep(2)
+            from scraper import load_cookies
+            load_cookies(browser, cookie_path)
+            browser.refresh()
+
+        try:
+            WebDriverWait(browser, 20).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "#global-nav"))
+            )
+        except TimeoutException:
+            raise RuntimeError("Login failed — check your credentials.")
+
+        # --- Build search URL ---
+        encoded_query = quote_plus(query)
+        date_param = _LINKEDIN_DATE_MAP.get(time_range, "")
+        url = f"https://www.linkedin.com/search/results/content/?keywords={encoded_query}&origin=FACETED_SEARCH&sortBy=date_posted"
+        if date_param:
+            url += f"&datePosted={date_param}"
+
+        browser.get(url)
+        time.sleep(5)
+
+        # --- Scroll and parse (same pattern as scrape_linkedin_posts) ---
+        unique_post_ids: set[str] = set()
+        all_posts: list[dict] = []
+        scroll_attempts = 0
+        no_new_posts_count = 0
+
+        while (
+            len(all_posts) < max_posts
+            and scroll_attempts < max_scroll_attempts
+            and no_new_posts_count < max_no_new_posts
+        ):
+            soup = bs(browser.page_source, "html.parser")
+            new_posts = _parse_posts_from_soup(soup, unique_post_ids)
+
+            if not new_posts:
+                no_new_posts_count += 1
+            else:
+                no_new_posts_count = 0
+                all_posts.extend(new_posts)
+                if on_post_found:
+                    on_post_found(len(all_posts))
+
+            if len(all_posts) >= max_posts:
+                all_posts = all_posts[:max_posts]
+                break
+
+            browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(4)
+            scroll_attempts += 1
+
+        return all_posts
+
+    finally:
+        browser.quit()
 
 
 # ---------------------------------------------------------------------------
