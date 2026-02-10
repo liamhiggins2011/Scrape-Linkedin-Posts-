@@ -35,9 +35,10 @@ def list_posts(
     sort: str = Query("date"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    job_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    posts, total = search_posts(db, q=q, author=author, sort=sort, page=page, per_page=per_page)
+    posts, total = search_posts(db, q=q, author=author, sort=sort, page=page, per_page=per_page, job_id=job_id)
     enriched = _add_bookmark_flag(posts, db)
     return {"posts": enriched, "total": total, "page": page, "per_page": per_page}
 

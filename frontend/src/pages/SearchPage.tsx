@@ -24,6 +24,7 @@ export default function SearchPage() {
   const [showExport, setShowExport] = useState(false)
   const intervalRef = useRef<number | null>(null)
   const lastQueryRef = useRef('')
+  const lastJobIdRef = useRef<string | null>(null)
 
   const perPage = 20
 
@@ -36,9 +37,11 @@ export default function SearchPage() {
     setLoading(true)
     lastQueryRef.current = searchQuery.trim()
 
+    lastJobIdRef.current = null
     startSearchScrape(searchQuery.trim(), maxPosts, contentType, timeRange, location)
       .then((newJob) => {
         setJob(newJob)
+        lastJobIdRef.current = newJob.job_id
         pollJob(newJob.job_id)
       })
       .catch((err) => {
@@ -63,7 +66,7 @@ export default function SearchPage() {
           clearInterval(intervalRef.current!)
           intervalRef.current = null
           if (status.status === 'completed') {
-            loadPosts(lastQueryRef.current, sort, 1)
+            loadPosts(lastQueryRef.current, sort, 1, lastJobIdRef.current)
             toast.success(`Found ${status.posts_found} posts`)
           } else if (status.status === 'failed') {
             toast.error(status.error || 'Search failed')
@@ -78,9 +81,9 @@ export default function SearchPage() {
     }, 2000)
   }
 
-  const loadPosts = async (q: string, s: string, p: number) => {
+  const loadPosts = async (q: string, s: string, p: number, jobId?: string | null) => {
     try {
-      const res = await searchPosts({ q, sort: s, page: p, per_page: perPage })
+      const res = await searchPosts({ q, sort: s, page: p, per_page: perPage, job_id: jobId || undefined })
       setPosts(res.posts)
       setTotal(res.total)
     } catch {
@@ -92,14 +95,14 @@ export default function SearchPage() {
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage)
-    loadPosts(lastQueryRef.current, sort, newPage)
+    loadPosts(lastQueryRef.current, sort, newPage, lastJobIdRef.current)
   }
 
   const handleSortChange = (newSort: string) => {
     setSort(newSort)
     setPage(1)
     if (posts.length > 0) {
-      loadPosts(lastQueryRef.current, newSort, 1)
+      loadPosts(lastQueryRef.current, newSort, 1, lastJobIdRef.current)
     }
   }
 
@@ -411,7 +414,7 @@ export default function SearchPage() {
       <PostDetailDrawer
         post={selectedPost}
         onClose={() => setSelectedPost(null)}
-        onBookmarkChange={() => loadPosts(lastQueryRef.current, sort, page)}
+        onBookmarkChange={() => loadPosts(lastQueryRef.current, sort, page, lastJobIdRef.current)}
       />
     </div>
   )

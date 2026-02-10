@@ -12,6 +12,7 @@ export async function searchPosts(params: {
   sort?: string
   page?: number
   per_page?: number
+  job_id?: string
 }): Promise<PostsResponse> {
   const sp = new URLSearchParams()
   if (params.q) sp.set('q', params.q)
@@ -19,6 +20,7 @@ export async function searchPosts(params: {
   if (params.sort) sp.set('sort', params.sort)
   if (params.page) sp.set('page', String(params.page))
   if (params.per_page) sp.set('per_page', String(params.per_page))
+  if (params.job_id) sp.set('job_id', params.job_id)
   const res = await fetch(`${BASE}/posts?${sp}`)
   if (!res.ok) throw new Error('Failed to fetch posts')
   return res.json()

@@ -10,7 +10,26 @@ def search_posts(
     sort: str = "date",
     page: int = 1,
     per_page: int = 20,
+    job_id: str | None = None,
 ) -> tuple[list[Post], int]:
+    # If job_id is provided, filter to only posts from that scrape job
+    if job_id:
+        query = db.query(Post).filter(Post.scrape_job_id == job_id)
+
+        if author:
+            query = query.filter(Post.author_name.ilike(f"%{author}%"))
+
+        if sort == "reactions":
+            query = query.order_by(Post.reactions.desc())
+        elif sort == "comments":
+            query = query.order_by(Post.comments.desc())
+        else:
+            query = query.order_by(Post.date_collected.desc())
+
+        total = query.count()
+        posts = query.offset((page - 1) * per_page).limit(per_page).all()
+        return posts, total
+
     if q:
         # Escape FTS5 special characters and build query
         fts_q = _fts_escape(q)
