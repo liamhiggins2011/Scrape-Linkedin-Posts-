@@ -109,7 +109,7 @@ def _execute_saved_search(search: SavedSearch, db):
             location=search.location,
         )
 
-    # Save new posts (skip duplicates)
+    # Save new posts (update job_id on duplicates)
     added = 0
     for p in post_dicts:
         existing = db.query(Post).filter(Post.post_id == p["post_id"]).first()
@@ -117,6 +117,8 @@ def _execute_saved_search(search: SavedSearch, db):
             p["scrape_job_id"] = job_id
             db.add(Post(**p))
             added += 1
+        else:
+            existing.scrape_job_id = job_id
     db.commit()
 
     # Run content enrichment on new posts

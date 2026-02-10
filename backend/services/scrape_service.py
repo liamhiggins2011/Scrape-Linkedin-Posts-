@@ -70,6 +70,9 @@ def _save_posts(job_id: str, post_dicts: list[dict]):
                 p["scrape_job_id"] = job_id
                 db.add(Post(**p))
                 added += 1
+            else:
+                # Re-associate existing post with this job so job_id filter works
+                existing.scrape_job_id = job_id
         db.commit()
 
         # Mark completed immediately so the frontend can show results
